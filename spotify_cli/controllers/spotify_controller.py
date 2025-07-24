@@ -1,36 +1,12 @@
-#!/usr/bin/env python3
-"""
-Spotify CLI Player
-A terminal-based Spotify controller using the Spotify Web API
-"""
+"""Spotify Controller module for interacting with Spotify API"""
 
+import os
+import sys
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import argparse
-import sys
-import os
-import readline
-from typing import Optional, Tuple
-import requests
+from typing import Optional, List
 
-
-class LLMHelper:
-    def __init__(self):
-        self.api_url = "http://localhost:11434/api/generate"
-        self.model = "mistral"  # or "mistral-openorca" for better performance
-
-    def generate(self, prompt: str) -> Optional[str]:
-        """Generate response from Ollama"""
-        try:
-            response = requests.post(
-                self.api_url,
-                json={"model": self.model, "prompt": prompt, "stream": False},
-            )
-            response.raise_for_status()
-            return response.json()["response"]
-        except Exception as e:
-            print(f"❌ LLM Error: {e}")
-            return None
+from ..utils.llm_helper import LLMHelper
 
 
 class SpotifyController:
@@ -62,7 +38,7 @@ class SpotifyController:
         )
         self.llm = LLMHelper()
 
-    def get_devices(self) -> list:
+    def get_devices(self) -> List[dict]:
         """Get available Spotify devices"""
         try:
             devices = self.sp.devices()
@@ -245,137 +221,3 @@ class SpotifyController:
             f"▶️ Playing: {track['name']} - {', '.join([artist['name'] for artist in track['artists']])}"
         )
         self.play_track(track["uri"])
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Spotify CLI Player")
-    parser.add_argument(
-        "command",
-        nargs="?",
-        choices=[
-            "play",
-            "quickplay",
-            "pause",
-            "resume",
-            "next",
-            "prev",
-            "current",
-            "devices",
-            "volume",
-        ],
-        help="Command to execute",
-    )
-    parser.add_argument(
-        "query", nargs="*", help="Search query for play command or volume level"
-    )
-
-    args = parser.parse_args()
-
-    # Initialize Spotify controller
-    try:
-        spotify = SpotifyController()
-    except SystemExit:
-        return
-
-    histfile = os.path.join(os.path.expanduser("~"), ".spotify_cli_history")
-    try:
-        readline.read_history_file(histfile)
-        readline.set_history_length(1000)
-    except FileNotFoundError:
-        pass
-
-    if not args.command:
-        # Interactive mode
-        print("🎵 Spotify CLI Player")
-        print(
-            "Commands: play <song>, quickplay <song>, pause, resume, next, prev, current, devices, volume <level>, quit"
-        )
-
-        while True:
-            try:
-                cmd = input("\n🎵 > ").strip().split()
-                if not cmd:
-                    continue
-
-                command = cmd[0].lower()
-
-                if command in ["quit", "exit", "q"]:
-                    readline.write_history_file(histfile)
-                    print("👋 Goodbye!")
-                    break
-                elif command == "play" and len(cmd) > 1:
-                    query = " ".join(cmd[1:])
-                    spotify.search_and_play(query)
-                elif command == "quickplay" and len(cmd) > 1:
-                    query = " ".join(cmd[1:])
-                    enhanced_query = spotify.enhance_search_query(query)
-                    if enhanced_query != query:
-                        print(f"🤖 Enhanced search: '{enhanced_query}'")
-                    spotify.play_best_match(enhanced_query)
-                elif command == "pause":
-                    spotify.pause()
-                elif command == "resume":
-                    spotify.resume()
-                elif command == "next":
-                    spotify.next_track()
-                elif command == "prev":
-                    spotify.previous_track()
-                elif command == "current":
-                    spotify.current_track()
-                elif command == "devices":
-                    spotify.show_devices()
-                elif command == "volume" and len(cmd) > 1:
-                    try:
-                        vol = int(cmd[1])
-                        spotify.set_volume(vol)
-                    except ValueError:
-                        print("❌ Invalid volume level")
-                else:
-                    print("❌ Unknown command or missing arguments")
-
-            except KeyboardInterrupt:
-                readline.write_history_file(histfile)  # Save history on interrupt
-                print("\n👋 Goodbye!")
-                break
-    else:
-        # Command line mode
-        if args.command == "play":
-            if args.query:
-                query = " ".join(args.query)
-                spotify.search_and_play(query)
-            else:
-                print("❌ Please provide a search query")
-        elif args.command == "quickplay":
-            if args.query:
-                query = " ".join(args.query)
-                enhanced_query = spotify.enhance_search_query(query)
-                if enhanced_query != query:
-                    print(f"🤖 Enhanced search: '{enhanced_query}'")
-                spotify.play_best_match(enhanced_query)
-            else:
-                print("❌ Please provide a search query")
-        elif args.command == "pause":
-            spotify.pause()
-        elif args.command == "resume":
-            spotify.resume()
-        elif args.command == "next":
-            spotify.next_track()
-        elif args.command == "prev":
-            spotify.previous_track()
-        elif args.command == "current":
-            spotify.current_track()
-        elif args.command == "devices":
-            spotify.show_devices()
-        elif args.command == "volume":
-            if args.query:
-                try:
-                    vol = int(args.query[0])
-                    spotify.set_volume(vol)
-                except ValueError:
-                    print("❌ Invalid volume level")
-            else:
-                print("❌ Please provide a volume level (0-100)")
-
-
-if __name__ == "__main__":
-    main()
