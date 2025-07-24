@@ -233,6 +233,19 @@ class SpotifyController:
         except Exception as e:
             print(f"❌ Error setting volume: {e}")
 
+    def play_best_match(self, query: str):
+        """Play the best matching track without user interaction"""
+        tracks = self.search_track(query, limit=1)
+        if not tracks:
+            print("❌ No tracks found")
+            return
+
+        track = tracks[0]
+        print(
+            f"▶️ Playing: {track['name']} - {', '.join([artist['name'] for artist in track['artists']])}"
+        )
+        self.play_track(track["uri"])
+
 
 def main():
     parser = argparse.ArgumentParser(description="Spotify CLI Player")
@@ -241,6 +254,7 @@ def main():
         nargs="?",
         choices=[
             "play",
+            "quickplay",
             "pause",
             "resume",
             "next",
@@ -274,7 +288,7 @@ def main():
         # Interactive mode
         print("🎵 Spotify CLI Player")
         print(
-            "Commands: play <song>, pause, resume, next, prev, current, devices, volume <level>, quit"
+            "Commands: play <song>, quickplay <song>, pause, resume, next, prev, current, devices, volume <level>, quit"
         )
 
         while True:
@@ -292,6 +306,12 @@ def main():
                 elif command == "play" and len(cmd) > 1:
                     query = " ".join(cmd[1:])
                     spotify.search_and_play(query)
+                elif command == "quickplay" and len(cmd) > 1:
+                    query = " ".join(cmd[1:])
+                    enhanced_query = spotify.enhance_search_query(query)
+                    if enhanced_query != query:
+                        print(f"🤖 Enhanced search: '{enhanced_query}'")
+                    spotify.play_best_match(enhanced_query)
                 elif command == "pause":
                     spotify.pause()
                 elif command == "resume":
@@ -323,6 +343,15 @@ def main():
             if args.query:
                 query = " ".join(args.query)
                 spotify.search_and_play(query)
+            else:
+                print("❌ Please provide a search query")
+        elif args.command == "quickplay":
+            if args.query:
+                query = " ".join(args.query)
+                enhanced_query = spotify.enhance_search_query(query)
+                if enhanced_query != query:
+                    print(f"🤖 Enhanced search: '{enhanced_query}'")
+                spotify.play_best_match(enhanced_query)
             else:
                 print("❌ Please provide a search query")
         elif args.command == "pause":
