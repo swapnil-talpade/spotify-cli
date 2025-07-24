@@ -9,6 +9,7 @@ from spotipy.oauth2 import SpotifyOAuth
 import argparse
 import sys
 import os
+import readline
 from typing import Optional
 
 
@@ -75,6 +76,14 @@ class SpotifyController:
     def play_track(self, track_uri: str, device_id: Optional[str] = None):
         """Play a specific track"""
         try:
+            devices = self.get_devices()
+            if not devices:
+                print("❌ No Spotify devices found! Please:")
+                print("  1. Open Spotify on your computer/phone")
+                print("  2. Run 'devices' command to verify it's detected")
+                print("  3. Try playing music again")
+                return
+
             self.sp.start_playback(uris=[track_uri], device_id=device_id)
             print("▶️  Playing track...")
         except Exception as e:
@@ -201,6 +210,13 @@ def main():
     except SystemExit:
         return
 
+    histfile = os.path.join(os.path.expanduser("~"), ".spotify_cli_history")
+    try:
+        readline.read_history_file(histfile)
+        readline.set_history_length(1000)
+    except FileNotFoundError:
+        pass
+
     if not args.command:
         # Interactive mode
         print("🎵 Spotify CLI Player")
@@ -217,6 +233,7 @@ def main():
                 command = cmd[0].lower()
 
                 if command in ["quit", "exit", "q"]:
+                    readline.write_history_file(histfile)
                     print("👋 Goodbye!")
                     break
                 elif command == "play" and len(cmd) > 1:
@@ -244,6 +261,7 @@ def main():
                     print("❌ Unknown command or missing arguments")
 
             except KeyboardInterrupt:
+                readline.write_history_file(histfile)  # Save history on interrupt
                 print("\n👋 Goodbye!")
                 break
     else:
