@@ -10,7 +10,27 @@ import argparse
 import sys
 import os
 import readline
-from typing import Optional
+from typing import Optional, Tuple
+import requests
+
+
+class LLMHelper:
+    def __init__(self):
+        self.api_url = "http://localhost:11434/api/generate"
+        self.model = "mistral"  # or "mistral-openorca" for better performance
+
+    def generate(self, prompt: str) -> Optional[str]:
+        """Generate response from Ollama"""
+        try:
+            response = requests.post(
+                self.api_url,
+                json={"model": self.model, "prompt": prompt, "stream": False},
+            )
+            response.raise_for_status()
+            return response.json()["response"]
+        except Exception as e:
+            print(f"❌ LLM Error: {e}")
+            return None
 
 
 class SpotifyController:
@@ -40,6 +60,7 @@ class SpotifyController:
                 scope=scope,
             )
         )
+        self.llm = LLMHelper()
 
     def get_devices(self) -> list:
         """Get available Spotify devices"""
@@ -89,14 +110,46 @@ class SpotifyController:
         except Exception as e:
             print(f"❌ Error playing track: {e}")
 
+    def enhance_search_query(self, user_input: str) -> str:
+        """Enhance search query using LLM"""
+        prompt = f"""<system>You are a music recommendation system. You MUST respond with ONLY a song name and artist in the exact format 'Song Name - Artist'. No explanation, no options, no additional text.</system>
+
+    Convert this request into a single specific song:
+    Request: {user_input}
+    Format: Song Name - Artist
+    
+    Examples:
+    Request: something chill
+    Response: Weightless - Marconi Union
+    
+    Request: workout music
+    Response: Eye of the Tiger - Survivor
+    
+    Request: {user_input}
+    Response:"""
+
+        enhanced = self.llm.generate(prompt)
+        # Clean up any potential extra whitespace or newlines
+        if enhanced:
+            enhanced = enhanced.strip()
+            # If response doesn't match expected format, fall back to original query
+            if " - " not in enhanced or len(enhanced.split(" - ")) != 2:
+                return user_input
+        return enhanced if enhanced else user_input
+
     def search_and_play(self, query: str):
         """Search for a track and play it"""
-        tracks = self.search_track(query, limit=5)
+        # Enhance the query first
+        enhanced_query = self.enhance_search_query(query)
+        if enhanced_query != query:
+            print(f"🤖 Enhanced search: '{enhanced_query}'")
+
+        tracks = self.search_track(enhanced_query, limit=5)
         if not tracks:
             print("❌ No tracks found")
             return
 
-        print(f"🔍 Search results for '{query}':")
+        print(f"🔍 Search results for '{enhanced_query}':")
         for i, track in enumerate(tracks):
             artists = ", ".join([artist["name"] for artist in track["artists"]])
             print(f"  {i+1}. {track['name']} - {artists}")
